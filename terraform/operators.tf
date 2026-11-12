@@ -11,6 +11,7 @@ resource "argocd_project" "local_operators" {
     # Repos que puede usar este project
     source_repos = [
       "https://github.com/oriana23/gitops-argo",
+      "git@github.com:teracloud-io/operators-kubernetes-ori.git",
       "https://prometheus-community.github.io/helm-charts",
       "https://charts.jetstack.io",
       "https://charts.external-secrets.io",
@@ -58,8 +59,8 @@ resource "argocd_application" "operators" {
     project = argocd_project.local_operators.metadata[0].name
 
     source {
-      repo_url        = "https://github.com/oriana23/gitops-argo"
-      path            = "apps/operators"
+      repo_url        = "git@github.com:teracloud-io/operators-kubernetes-ori.git"
+      path            = "operators"
       target_revision = "HEAD"
 
       helm {
@@ -82,5 +83,5 @@ resource "argocd_application" "operators" {
     }
   }
 
-  depends_on = [argocd_project.local_operators]
+  depends_on = [argocd_project.local_operators, argocd_repository.operators]
 }

@@ -54,8 +54,9 @@ gitops-argo/
 │   ├── ingress.tf                # Ingress para argocd.local
 │   ├── argocd-app.tf             # Application nginx gestionada por ArgoCD
 │   ├── operators.tf              # ArgoCD Project + app-of-apps para operadores
+│   ├── repositories.tf           # Registro de repos en ArgoCD (público + privado SSH)
 │   ├── secrets.tf                # Secret con la password de ArgoCD
-│   ├── variables.tf              # Variable argocd_password
+│   ├── variables.tf              # Variables: argocd_password, operators_ssh_key
 │   └── outputs.tf                # (reservado para outputs futuros)
 │
 ├── apps/                         # Helm charts de las aplicaciones
@@ -97,7 +98,12 @@ Define la Application de ArgoCD que apunta al repo `https://github.com/oriana23/
 Crea el Secret `argocd-admin-credentials` en el namespace `argocd`. La password se guarda de forma segura en Kubernetes y nunca queda en el código fuente.
 
 ### `operators.tf`
-Crea el ArgoCD Project `local-operators` que define qué repos y namespaces puede usar. Crea la Application raíz `operators` (patrón app-of-apps) apuntando a `apps/operators/`. ArgoCD renderiza el chart y genera automáticamente la Application `prometheus-stack`.
+Crea el ArgoCD Project `local-operators` que define qué repos y namespaces puede usar. Crea la Application raíz `operators` (patrón app-of-apps) apuntando al repo privado `operators-kubernetes-ori` via SSH, usando `minikube-values.yaml` para habilitar solo Prometheus. ArgoCD renderiza el chart y genera automáticamente la Application `prometheus-stack`.
+
+### `repositories.tf`
+Registra los repos en ArgoCD para que aparezcan en Settings → Repositories:
+- **`gitops-argo`**: repo público, acceso HTTPS sin credenciales
+- **`operators-kubernetes-ori`**: repo privado de la organización, acceso SSH con deploy key. La clave privada se pasa como variable sensible y nunca se hardcodea en el código.
 
 ---
 
@@ -146,6 +152,8 @@ Genera la Application de ArgoCD `prometheus-stack` que instala `kube-prometheus-
 
 ### Seguridad
 - Password de ArgoCD en un **Secret de Kubernetes** (`argocd-admin-credentials`), nunca en el código
+- Clave SSH privada para el repo privado pasada como variable sensible (`operators_ssh_key`), nunca hardcodeada
+- Deploy key de solo lectura en el repo `operators-kubernetes-ori`
 
 ### Resiliencia
 - **PodDisruptionBudget**: mínimo 1 pod disponible durante updates o mantenimiento
@@ -171,7 +179,9 @@ terraform init
 
 ### 3. Aplicar
 ```bash
-terraform apply -var="argocd_password=TU_PASSWORD"
+terraform apply \
+  -var="argocd_password=TU_PASSWORD" \
+  -var="operators_ssh_key=$(cat ~/.ssh/argocd-operators)"
 ```
 
 ### 4. Agregar entradas en `/etc/hosts`
@@ -232,4 +242,4 @@ kubectl get pods -n monitoring
 | Día | Avance |
 |---|---|
 | Día 1 | Instalación de ArgoCD con Helm + Ingress configurado. Acceso a UI en argocd.local |
-| Día 2 | Helm chart propio en GitHub. Application nginx con namespace dedicado e Ingress. Buenas prácticas: Secret para password, PodDisruptionBudget, livenessProbe, readinessProbe, ConfigMap con HTML custom. Stack de observabilidad con Prometheus + Grafana via app-of-apps. Migración a repo único `gitops-argo` |
+| Día 2 | Helm chart propio en GitHub. Application nginx con namespace dedicado e Ingress. Buenas prácticas: Secret para password, PodDisruptionBudget, livenessProbe, readinessProbe, ConfigMap con HTML custom. Stack de observabilidad con Prometheus + Grafana via app-of-apps. Migración a repo único `gitops-argo`. Repo privado de operadores conectado via SSH Deploy Key |
