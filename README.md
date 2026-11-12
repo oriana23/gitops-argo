@@ -1,15 +1,15 @@
-# ArgoCD + Ingress NGINX — Proyecto GitOps con Terraform
+# GitOps Lab — ArgoCD + Terraform + Kubernetes
 
 ## Descripción
 
-Este proyecto implementa un stack GitOps completo en Kubernetes (Minikube local) usando Terraform. Incluye la instalación de ArgoCD, configuración de Ingress NGINX, despliegue automatizado de una aplicación nginx mediante un Helm chart propio, y un stack de observabilidad con Prometheus y Grafana gestionado como app-of-apps.
+Este repositorio centraliza toda la infraestructura y los manifiestos de aplicaciones de un stack GitOps completo en Kubernetes (Minikube local) usando Terraform. Incluye la instalación de ArgoCD, configuración de Ingress NGINX, despliegue automatizado de una aplicación nginx mediante un Helm chart propio, y un stack de observabilidad con Prometheus y Grafana gestionado como app-of-apps.
 
 ---
 
 ## Arquitectura
 
 ```
-GitHub Repo (oriana23/argocd)
+GitHub Repo (oriana23/gitops-argo)
         │
         │  ArgoCD monitorea y sincroniza
         ▼
@@ -45,17 +45,38 @@ GitHub Repo (oriana23/argocd)
 
 ---
 
-## Estructura del proyecto Terraform
+## Estructura del repositorio
 
 ```
-argocd-ingress-proyecto/
-├── provider.tf       # Providers (Kubernetes, Helm, ArgoCD) + instalación de ArgoCD
-├── ingress.tf        # Ingress para acceder a ArgoCD en argocd.local
-├── argocd-app.tf     # Application de ArgoCD que despliega nginx desde GitHub
-├── operators.tf      # ArgoCD Project + Application app-of-apps para operadores
-├── secrets.tf        # Secret de Kubernetes con la password de ArgoCD
-├── variables.tf      # Variable argocd_password
-├── outputs.tf        # (reservado para outputs futuros)
+gitops-argo/
+├── terraform/                    # Infraestructura como código
+│   ├── provider.tf               # Providers + instalación de ArgoCD
+│   ├── ingress.tf                # Ingress para argocd.local
+│   ├── argocd-app.tf             # Application nginx gestionada por ArgoCD
+│   ├── operators.tf              # ArgoCD Project + app-of-apps para operadores
+│   ├── secrets.tf                # Secret con la password de ArgoCD
+│   ├── variables.tf              # Variable argocd_password
+│   └── outputs.tf                # (reservado para outputs futuros)
+│
+├── apps/                         # Helm charts de las aplicaciones
+│   ├── nginx-app/                # Chart de la app nginx
+│   │   ├── Chart.yaml
+│   │   ├── values.yaml
+│   │   └── templates/
+│   │       ├── deployment.yaml
+│   │       ├── service.yaml
+│   │       ├── ingress.yaml
+│   │       ├── pdb.yaml
+│   │       └── configmap.yaml
+│   │
+│   └── operators/                # App-of-apps para operadores
+│       ├── Chart.yaml
+│       ├── values.yaml
+│       ├── minikube-values.yaml
+│       └── templates/
+│           ├── prometheus-stack.yaml
+│           └── ...
+│
 └── README.md
 ```
 
@@ -64,113 +85,72 @@ argocd-ingress-proyecto/
 ## Archivos Terraform
 
 ### `provider.tf`
-- Configura los providers de **Kubernetes**, **Helm** y **ArgoCD**
-- Crea el namespace `argocd`
-- Instala ArgoCD via Helm chart versión `7.7.0` desde el repo oficial
-- El provider ArgoCD lee la password desde el Secret de Kubernetes (no desde texto plano)
+Configura los providers de **Kubernetes**, **Helm** y **ArgoCD**, todos conectados al cluster local via `~/.kube/config`. Crea el namespace `argocd` e instala ArgoCD via Helm chart versión `7.7.0` desde el repo oficial. El provider ArgoCD lee la password desde el Secret de Kubernetes, nunca desde texto plano.
 
 ### `ingress.tf`
-- Crea un Ingress con NGINX para exponer ArgoCD en `argocd.local`
-- Configurado con SSL passthrough y backend HTTPS hacia `argocd-server:443`
+Crea el Ingress que expone ArgoCD en `argocd.local`. Configurado con SSL passthrough y backend HTTPS hacia `argocd-server:443`.
 
 ### `argocd-app.tf`
-- Define la Application de ArgoCD que apunta al repo `https://github.com/oriana23/argocd`
-- Path del chart: `nginx-app/`
-- Namespace destino: `nginx-app` (creado automáticamente con `CreateNamespace=true`)
-- Sync automático con `prune` y `selfHeal` habilitados
-- Sobreescribe `replicaCount: 2` desde Terraform
+Define la Application de ArgoCD que apunta al repo `https://github.com/oriana23/gitops-argo`, path `apps/nginx-app/`. Namespace destino `nginx-app` creado automáticamente. Sync automático con `prune` y `selfHeal`. Sobreescribe `replicaCount: 2`.
 
 ### `secrets.tf`
-- Crea el Secret `argocd-admin-credentials` en el namespace `argocd`
-- Almacena la password de forma segura en Kubernetes en lugar de texto plano en el código
+Crea el Secret `argocd-admin-credentials` en el namespace `argocd`. La password se guarda de forma segura en Kubernetes y nunca queda en el código fuente.
 
 ### `operators.tf`
-- Crea el ArgoCD Project `local-operators` con los repos y namespaces permitidos
-- Crea la Application raíz `operators` (patrón app-of-apps) que apunta a `operators/` en el repo
-- ArgoCD renderiza el chart y genera automáticamente la Application `prometheus-stack`
+Crea el ArgoCD Project `local-operators` que define qué repos y namespaces puede usar. Crea la Application raíz `operators` (patrón app-of-apps) apuntando a `apps/operators/`. ArgoCD renderiza el chart y genera automáticamente la Application `prometheus-stack`.
 
 ---
 
-## Repo de manifiestos
+## Archivos del chart `apps/nginx-app`
 
-**`https://github.com/oriana23/argocd`**
+### `Chart.yaml`
+Identifica la carpeta como un chart Helm válido. Define el nombre `nginx-app`, versión del chart `0.1.0` y versión de la app `1.27`.
 
-```
-argocd/
-├── nginx-app/                    # Helm chart de la app nginx
-│   ├── Chart.yaml
-│   ├── values.yaml
-│   └── templates/
-│       ├── deployment.yaml       # Con livenessProbe y readinessProbe + volumeMount
-│       ├── service.yaml
-│       ├── ingress.yaml
-│       ├── pdb.yaml              # PodDisruptionBudget
-│       └── configmap.yaml        # Página HTML custom servida por nginx
-│
-└── operators/                    # App-of-apps para operadores (basado en teracloud-io)
-    ├── Chart.yaml
-    ├── values.yaml
-    ├── minikube-values.yaml      # Valores específicos para Minikube (solo Prometheus)
-    └── templates/
-        ├── prometheus-stack.yaml
-        ├── cert-manager.yaml
-        ├── keda.yaml
-        └── ...
-```
+### `values.yaml`
+Centraliza toda la configuración configurable: imagen Docker, réplicas, tipo de servicio, puerto, hostname del Ingress y límites de recursos. Es el único archivo que hay que editar para cambiar el comportamiento de la app.
 
-### Descripción de cada archivo del chart `nginx-app`
+### `templates/deployment.yaml`
+Define el Deployment de nginx. Usa `{{ .Values.* }}` para los valores configurables y `{{ .Release.Name }}` como identificador de recursos. Incluye `livenessProbe`, `readinessProbe` y un `volumeMount` que monta el ConfigMap con la página HTML custom en `/usr/share/nginx/html`.
 
-#### `Chart.yaml`
-Identifica la carpeta como un chart Helm válido. Define el nombre `nginx-app`, la versión del chart `0.1.0` y la versión de la aplicación `1.27` (imagen de nginx). Sin este archivo Helm no reconoce el directorio como chart.
+### `templates/service.yaml`
+Service ClusterIP que expone los pods en el puerto 80. Es el backend que usa el Ingress para enrutar el tráfico.
 
-#### `values.yaml`
-Centraliza toda la configuración configurable del chart. Define la imagen Docker, cantidad de réplicas, tipo de servicio, puerto, hostname del Ingress y límites de recursos CPU/memoria. Es el único archivo que hay que editar para cambiar el comportamiento de la app sin tocar los templates.
+### `templates/ingress.yaml`
+Ingress que enruta el tráfico de `nginx.local/` al Service de nginx. Hace accesible la app desde `http://nginx.local`.
 
-#### `templates/deployment.yaml`
-Define el Deployment de Kubernetes. Usa la sintaxis `{{ .Values.* }}` para leer los valores de `values.yaml` y `{{ .Release.Name }}` para usar el nombre del release como identificador de los recursos. Incluye:
-- `livenessProbe`: si el pod no responde en `http://:80/`, Kubernetes lo reinicia
-- `readinessProbe`: el pod no recibe tráfico hasta que responda correctamente
-- `volumeMount`: monta el ConfigMap en `/usr/share/nginx/html` para servir la página custom
-- Límites de CPU y memoria definidos en `values.yaml`
+### `templates/pdb.yaml`
+PodDisruptionBudget con `minAvailable: 1`. Garantiza que durante updates o mantenimiento del nodo siempre quede al menos un pod disponible.
 
-#### `templates/service.yaml`
-Crea el Service de tipo ClusterIP que expone los pods dentro del cluster en el puerto 80. Es el recurso que el Ingress usa como backend para enrutar el tráfico entrante hacia los pods de nginx.
+### `templates/configmap.yaml`
+Almacena una página HTML custom que nginx sirve como página de inicio, montada como volumen en el Deployment. Al ser un ConfigMap, el HTML se puede modificar con un commit sin reconstruir la imagen Docker.
 
-#### `templates/ingress.yaml`
-Crea el Ingress que expone la app hacia afuera del cluster. Configura NGINX como ingress class y enruta el tráfico hacia `nginx.local/` al Service de nginx. Hace accesible la app desde el navegador en `http://nginx.local`.
+---
 
-#### `templates/pdb.yaml`
-Crea el PodDisruptionBudget con `minAvailable: 1`. Garantiza que durante operaciones de mantenimiento (como un `kubectl drain` de un nodo o un rolling update) Kubernetes nunca baje todos los pods al mismo tiempo. Siempre queda al menos uno disponible para servir tráfico.
+## Archivos del chart `apps/operators`
 
-#### `templates/configmap.yaml`
-Almacena una página HTML custom que nginx sirve como página de inicio. El contenido se monta en el Deployment como volumen en `/usr/share/nginx/html`, reemplazando la página por defecto de nginx. Al ser un ConfigMap, el HTML puede modificarse haciendo un commit al repo sin necesidad de reconstruir la imagen Docker. No contiene datos sensibles por lo que es seguro versionarlo en Git.
+### `Chart.yaml`
+Identifica la carpeta como chart Helm de tipo `application`. Es el chart raíz del patrón app-of-apps.
 
-### Descripción de cada archivo del chart `operators`
+### `values.yaml`
+Esquema base con todos los operadores en `enabled: false`. Define la estructura configurable del chart.
 
-#### `Chart.yaml`
-Identifica la carpeta `operators/` como un chart Helm de tipo `application`. Es el chart raíz del patrón app-of-apps.
+### `minikube-values.yaml`
+Valores reales para el entorno local. Habilita solo `prometheusStack: true` con versión `93.2.0`. ArgoCD lo usa al renderizar el chart.
 
-#### `values.yaml`
-Define la estructura base con todos los operadores en `enabled: false` y sin versiones. Es el esquema del chart, no los valores reales. Sirve como referencia de qué operadores existen y qué campos son configurables.
-
-#### `minikube-values.yaml`
-Los valores reales para el entorno local. Habilita solo `prometheusStack: true` con la versión `93.2.0` y deja el resto en `false`. Es el archivo que ArgoCD usa al renderizar el chart en Minikube, permitiendo activar o desactivar operadores sin tocar el código base.
-
-#### `templates/prometheus-stack.yaml`
-Template que genera una Application de ArgoCD (no un recurso de Kubernetes directamente). Cuando ArgoCD renderiza el chart `operators/`, este archivo produce el objeto `Application` llamado `prometheus-stack` que apunta al Helm chart oficial `kube-prometheus-stack` en `https://prometheus-community.github.io/helm-charts`. Esa Application instala Prometheus, el Prometheus Operator y Grafana en el namespace `monitoring` con recursos ajustados para correr en Minikube.
+### `templates/prometheus-stack.yaml`
+Genera la Application de ArgoCD `prometheus-stack` que instala `kube-prometheus-stack` desde el repo oficial de Prometheus Community. Despliega Prometheus, el Prometheus Operator y Grafana en el namespace `monitoring`.
 
 ---
 
 ## Mejoras de buenas prácticas aplicadas
 
 ### Seguridad
-- Password de ArgoCD almacenada en un **Secret de Kubernetes** (`argocd-admin-credentials`)
-- El provider ArgoCD lee la password del Secret, nunca está hardcodeada en el código
+- Password de ArgoCD en un **Secret de Kubernetes** (`argocd-admin-credentials`), nunca en el código
 
 ### Resiliencia
-- **PodDisruptionBudget** en nginx-app: garantiza al menos 1 pod disponible durante updates o mantenimiento del nodo
-- **livenessProbe**: Kubernetes reinicia el pod si no responde en `http://:80/`
-- **readinessProbe**: Kubernetes no envía tráfico al pod hasta que esté listo para responder
+- **PodDisruptionBudget**: mínimo 1 pod disponible durante updates o mantenimiento
+- **livenessProbe**: reinicia el pod si no responde en `http://:80/`
+- **readinessProbe**: no envía tráfico hasta que el pod esté listo
 
 ---
 
@@ -185,6 +165,7 @@ kubectl get secret argocd-initial-admin-secret \
 
 ### 2. Inicializar Terraform
 ```bash
+cd terraform
 terraform init
 ```
 
@@ -251,4 +232,4 @@ kubectl get pods -n monitoring
 | Día | Avance |
 |---|---|
 | Día 1 | Instalación de ArgoCD con Helm + Ingress configurado. Acceso a UI en argocd.local |
-| Día 2 | Helm chart propio en GitHub. Application nginx gestionada desde Terraform. Namespace dedicado con Ingress. Mejoras de buenas prácticas: Secret para password, PodDisruptionBudget, livenessProbe y readinessProbe. Stack de observabilidad con Prometheus + Grafana desplegado via app-of-apps |
+| Día 2 | Helm chart propio en GitHub. Application nginx con namespace dedicado e Ingress. Buenas prácticas: Secret para password, PodDisruptionBudget, livenessProbe, readinessProbe, ConfigMap con HTML custom. Stack de observabilidad con Prometheus + Grafana via app-of-apps. Migración a repo único `gitops-argo` |
