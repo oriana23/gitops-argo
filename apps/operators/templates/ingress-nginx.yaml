@@ -1,0 +1,28 @@
+{{- if .Values.operators.ingressNginx.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ingress-nginx
+  namespace: argocd
+spec:
+  project: {{ .Values.project }}
+  source:
+    repoURL: https://kubernetes.github.io/ingress-nginx
+    chart: ingress-nginx
+    targetRevision: {{ .Values.operators.ingressNginx.version | quote }}
+    helm:
+      releaseName: ingress-nginx
+      values: |
+        controller:
+          service:
+            type: ClusterIP
+          admissionWebhooks:
+            patch:
+              enabled: true
+  destination:
+    server: {{ .Values.destinationServer }}
+    namespace: ingress-nginx
+  syncPolicy:
+{{ include "local-operators.syncPolicy" . | indent 4 }}
+{{- end }}
+

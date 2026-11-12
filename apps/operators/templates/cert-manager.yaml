@@ -1,0 +1,24 @@
+{{- if .Values.operators.certManager.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cert-manager
+  namespace: argocd
+spec:
+  project: {{ .Values.project }}
+  source:
+    repoURL: https://charts.jetstack.io
+    chart: cert-manager
+    targetRevision: {{ .Values.operators.certManager.version | quote }}
+    helm:
+      releaseName: cert-manager
+      values: |
+        crds:
+          enabled: true
+  destination:
+    server: {{ .Values.destinationServer }}
+    namespace: cert-manager
+  syncPolicy:
+{{ include "local-operators.syncPolicy" . | indent 4 }}
+{{- end }}
+

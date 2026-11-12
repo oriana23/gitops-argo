@@ -1,0 +1,21 @@
+{{- if .Values.operators.cloudnativePg.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cloudnative-pg
+  namespace: argocd
+spec:
+  project: {{ .Values.project }}
+  source:
+    repoURL: https://cloudnative-pg.github.io/charts
+    chart: cloudnative-pg
+    targetRevision: {{ .Values.operators.cloudnativePg.version | quote }}
+    helm:
+      releaseName: cloudnative-pg
+  destination:
+    server: {{ .Values.destinationServer }}
+    namespace: cnpg-system
+  syncPolicy:
+{{ include "local-operators.syncPolicy" . | indent 4 }}
+{{- end }}
+

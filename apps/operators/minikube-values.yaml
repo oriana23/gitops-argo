@@ -1,0 +1,25 @@
+project: local-operators
+destinationServer: https://kubernetes.default.svc
+
+operators:
+  certManager:
+    enabled: false
+    version: ""
+  externalSecrets:
+    enabled: false
+    version: ""
+  keda:
+    enabled: false
+    version: ""
+  prometheusStack:
+    enabled: true
+    version: "93.2.0"
+  cloudnativePg:
+    enabled: false
+    version: ""
+  ingressNginx:
+    enabled: false
+    version: ""
+  argoRollouts:
+    enabled: false
+    version: ""

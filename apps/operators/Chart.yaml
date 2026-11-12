@@ -1,0 +1,7 @@
+apiVersion: v2
+name: kubernetes-local-operators
+description: Argo CD app-of-apps for portable local Kubernetes operators
+type: application
+version: 0.1.0
+appVersion: "1.0"
+

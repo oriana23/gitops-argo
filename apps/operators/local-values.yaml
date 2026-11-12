@@ -1,0 +1,25 @@
+project: local-operators
+
+operators:
+  certManager:
+    enabled: true
+    version: v1.21.3
+  externalSecrets:
+    enabled: true
+    version: 2.15.0
+  keda:
+    enabled: true
+    version: 2.21.0
+  prometheusStack:
+    enabled: true
+    version: 93.2.0
+  cloudnativePg:
+    enabled: true
+    version: 0.29.1
+  ingressNginx:
+    enabled: true
+    version: 4.15.1
+  argoRollouts:
+    enabled: false
+    version: 2.43.12
+

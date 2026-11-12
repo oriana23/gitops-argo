@@ -1,0 +1,51 @@
+{{- if .Values.operators.prometheusStack.enabled }}
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: prometheus-stack
+  namespace: argocd
+spec:
+  project: {{ .Values.project }}
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: {{ .Values.operators.prometheusStack.version | quote }}
+    helm:
+      releaseName: prometheus-stack
+      values: |
+        crds:
+          enabled: true
+        alertmanager:
+          enabled: false
+        grafana:
+          enabled: true
+          persistence:
+            enabled: false
+        prometheus:
+          prometheusSpec:
+            retention: 24h
+            storageSpec: {}
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                memory: 1Gi
+        prometheusOperator:
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+        kubeEtcd:
+          enabled: false
+        kubeControllerManager:
+          enabled: false
+        kubeScheduler:
+          enabled: false
+  destination:
+    server: {{ .Values.destinationServer }}
+    namespace: monitoring
+  syncPolicy:
+{{ include "local-operators.syncPolicy" . | indent 4 }}
+{{- end }}
+
